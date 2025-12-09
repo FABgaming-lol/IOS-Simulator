@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Web iPhone OS Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --phone-bg: #050709;
+      --phone-border: #1f2933;
+      --screen-radius: 26px;
+      --accent: #4f46e5;
+      --accent-soft: rgba(79, 70, 229, 0.2);
+      --text-main: #e5e7eb;
+      --text-soft: #9ca3af;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #101827, #020617);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text-main);
+    }
+
+    body.theme-light {
+      background: radial-gradient(circle at top, #e5f0ff, #d1d5db);
+    }
+
+    .page {
+      position: relative;
+      padding: 32px;
+    }
+
+    .phone-shadow {
+      position: absolute;
+      inset: 0;
+      filter: blur(40px);
+      opacity: 0.5;
+      background: radial-gradient(circle at 20% 0%, rgba(79, 70, 229, 0.8), transparent 60%),
+                  radial-gradient(circle at 80% 100%, rgba(236, 72, 153, 0.8), transparent 60%);
+      z-index: -1;
+    }
+
+    .phone-frame {
+      position: relative;
+      width: 340px;
+      height: 700px;
+      border-radius: 40px;
+      padding: 10px;
+      background: linear-gradient(135deg, #111827, #020617);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .phone-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 32px;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #111827, #020617);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    body.theme-light .phone-inner {
+      background: radial-gradient(circle at top, #f9fafb, #e5e7eb);
+      border-color: rgba(148, 163, 184, 0.5);
+    }
+
+    /* Side & volume buttons (visual + clickable for lock) */
+    .side-button {
+      position: absolute;
+      right: -4px;
+      top: 160px;
+      width: 3px;
+      height: 70px;
+      border-radius: 999px;
+      background: #111827;
+      border: none;
+      cursor: pointer;
+    }
+
+    .volume-button {
+      position: absolute;
+      left: -4px;
+      width: 3px;
+      height: 40px;
+      border-radius: 999px;
+      background: #111827;
+      border: none;
+    }
+
+    .volume-up {
+      top: 140px;
+    }
+
+    .volume-down {
+      top: 190px;
+    }
+
+    /* Notch & status bar */
+    .notch {
+      position: absolute;
+      top: 9px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 150px;
+      height: 26px;
+      background: #020617;
+      border-radius: 999px;
+      z-index: 10;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.8);
+    }
+
+    body.theme-light .notch {
+      background: #111827;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.5);
+    }
+
+    .status-bar {
+      position: absolute;
+      top: 8px;
+      left: 16px;
+      right: 16px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      z-index: 5;
+      color: #e5e7eb;
+      pointer-events: none;
+    }
+
+    body.theme-light .status-bar {
+      color: #111827;
+    }
+
+    .status-left, .status-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .signal-bar {
+      width: 3px;
+      height: 8px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      opacity: 0.4;
+    }
+    .signal-bar:nth-child(2) { height: 10px; opacity: 0.6; }
+    .signal-bar:nth-child(3) { height: 12px; opacity: 0.8; }
+    .signal-bar:nth-child(4) { height: 14px; opacity: 1; }
+
+    .battery {
+      width: 22px;
+      height: 10px;
+      border-radius: 3px;
+      border: 1px solid currentColor;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 1px;
+    }
+    .battery::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 5px;
+      border-radius: 1px;
+      background: currentColor;
+    }
+    .battery-fill {
+      height: 100%;
+      width: 60%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #22c55e, #4ade80);
+    }
+
+    /* Screen layers */
+    .screen-layer {
+      position: absolute;
+      inset: 40px 12px 24px 12px;
+      border-radius: var(--screen-radius);
+      overflow: hidden;
+      display: none;
+      color: var(--text-main);
+    }
+
+    .screen-layer.active {
+      display: block;
+    }
+
+    /* Wallpapers */
+    .wallpaper-default {
+      background: radial-gradient(circle at 0% 0%, #22c55e 0, transparent 50%),
+                  radial-gradient(circle at 100% 10%, #6366f1 0, transparent 55%),
+                  radial-gradient(circle at 10% 100%, #ec4899 0, transparent 55%),
+                  radial-gradient(circle at 100% 100%, #f97316 0, transparent 55%),
+                  #020617;
+    }
+
+    .wallpaper-ocean {
+      background: radial-gradient(circle at 0% 0%, #0ea5e9 0, transparent 55%),
+                  radial-gradient(circle at 100% 100%, #22c55e 0, transparent 55%),
+                  #020617;
+    }
+
+    .wallpaper-pastel {
+      background: radial-gradient(circle at 0% 0%, #f97316 0, transparent 50%),
+                  radial-gradient(circle at 100% 0%, #a855f7 0, transparent 55%),
+                  radial-gradient(circle at 0% 100%, #22c55e 0, transparent 55%),
+                  #fee2e2;
+    }
+
+    body.theme-light .wallpaper-default,
+    body.theme-light .wallpaper-ocean,
+    body.theme-light .wallpaper-pastel {
+      filter: brightness(1.1);
+    }
+
+    /* Lock screen */
+    .lock-screen-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #f9fafb;
+    }
+
+    .lock-time {
+      text-align: center;
+      margin-top: 40px;
+    }
+
+    .lock-time-main {
+      font-size: 56px;
+      font-weight: 300;
+      letter-spacing: 2px;
+    }
+
+    .lock-time-sub {
+      font-size: 16px;
+      opacity: 0.85;
+    }
+
+    .lock-notifications {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .lock-notification-card {
+      background: rgba(15, 23, 42, 0.7);
+      border-radius: 18px;
+      padding: 10px 12px;
+      font-size: 12px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+    }
+
+    .lock-notification-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .lock-bottom-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 4px;
+    }
+
+    .swipe-unlock {
+      padding: 6px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: radial-gradient(circle at 0 0, rgba(79, 70, 229, 0.6), transparent 60%);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+
+    .swipe-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(248, 250, 252, 0.2);
+      border: 1px solid rgba(248, 250, 252, 0.8);
+    }
+
+    .lock-quick-icons {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      padding: 0 24px;
+      font-size: 20px;
+      opacity: 0.9;
+    }
+
+    /* Home screen */
+    .home-screen-inner {
+      width: 100%;
+      height: 100%;
+      padding: 18px 14px 10px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .widget-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .widget {
+      border-radius: 18px;
+      padding: 10px 12px;
+      background: radial-gradient(circle at 0 0, rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.4));
+      color: #f9fafb;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      font-size: 11px;
+    }
+
+    body.theme-light .widget {
+      background: rgba(248, 250, 252, 0.7);
+      color: #111827;
+      border-color: rgba(148, 163, 184, 0.7);
+    }
+
+    .widget-title {
+      font-size: 11px;
+      opacity: 0.7;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    .widget-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+
+    .widget-main {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .widget-sub {
+      font-size: 11px;
+      opacity: 0.8;
+    }
+
+    .apps-grid {
+      margin-top: 6px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px 8px;
+      justify-items: center;
+    }
+
+    .app-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      border: none;
+      background: conic-gradient(from 180deg, #4f46e5, #ec4899, #f97316, #22c55e, #4f46e5);
+      padding: 2px;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.9);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+
+    .app-icon-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.18), rgba(15, 23, 42, 0.95));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .app-label {
+      margin-top: 4px;
+      font-size: 11px;
+      text-align: center;
+      color: #f9fafb;
+      text-shadow: 0 1px 4px rgba(15, 23, 42, 0.9);
+    }
+
+    body.theme-light .app-label {
+      color: #111827;
+      text-shadow: none;
+    }
+
+    .app-icon:active {
+      transform: translateY(1px) scale(0.97);
+      box-shadow: 0 3px 12px rgba(15, 23, 42, 0.6);
+    }
+
+    .dock {
+      margin-top: auto;
+      padding-top: 8px;
+      padding-bottom: 2px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .dock-inner {
+      width: 90%;
+      padding: 6px 10px 8px;
+      border-radius: 20px;
+      backdrop-filter: blur(18px);
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      display: flex;
+      justify-content: space-around;
+    }
+
+    body.theme-light .dock-inner {
+      background: rgba(248, 250, 252, 0.85);
+      border-color: rgba(148, 163, 184, 0.8);
+    }
+
+    .dock .app-icon {
+      width: 48px;
+      height: 48px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.6);
+    }
+
+    /* Home indicator */
+    .home-indicator {
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(248, 250, 252, 0.8);
+      opacity: 0.9;
+      cursor: pointer;
+    }
+
+    body.theme-light .home-indicator {
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    /* App screen */
+    .app-screen-inner {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle at top, rgba(15, 23, 42, 0.96), #020617);
+      color: #f9fafb;
+    }
+
+    body.theme-light .app-screen-inner {
+      background: #f9fafb;
+      color: #111827;
+    }
+
+    .app-header {
+      padding: 10px 14px;
+      padding-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .app-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .circle-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.5);
+      color: #f9fafb;
+      backdrop-filter: blur(10px);
+    }
+
+    body.theme-light .circle-btn {
+      background: rgba(148, 163, 184, 0.3);
+      color: #111827;
+    }
+
+    .app-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .app-body {
+      flex: 1;
+      padding: 8px 14px 12px;
+      overflow: auto;
+      font-size: 13px;
+    }
+
+    /* Browser app */
+    .browser-address-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .browser-address-input {
+      flex: 1;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.7);
+      color: #e5e7eb;
+      padding: 6px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    body.theme-light .browser-address-input {
+      background: #f3f4f6;
+      color: #111827;
+      border-color: rgba(148, 163, 184, 0.9);
+    }
+
+    .browser-go-btn {
+      border-radius: 999px;
+      border: none;
+      padding: 0 10px;
+      font-size: 12px;
+      background: var(--accent);
+      color: #f9fafb;
+      cursor: pointer;
+    }
+
+    .browser-frame {
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      border: none;
+      background: #020617;
+    }
+
+    body.theme-light .browser-frame {
+      background: #e5e7eb;
+    }
+
+    .browser-hint {
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 3px;
+      margin-bottom: 4px;
+    }
+
+    /* Notes app */
+    .notes-textarea {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      padding: 10px 12px;
+      font-size: 13px;
+      outline: none;
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      backdrop-filter: blur(10px);
+    }
+
+    body.theme-light .notes-textarea {
+      background: #fefce8;
+      color: #111827;
+      border-color: rgba(202, 138, 4, 0.8);
+    }
+
+    /* Music app */
+    .music-card {
+      border-radius: 18px;
+      padding: 12px;
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.9), rgba(236, 72, 153, 0.9));
+      color: white;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .music-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .music-artist {
+      font-size: 11px;
+      opacity: 0.85;
+    }
+
+    .music-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .music-control-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: none;
+      background: rgba(15, 23, 42, 0.4);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    .music-timeline {
+      margin-top: 6px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.4);
+      overflow: hidden;
+    }
+
+    .music-timeline-fill {
+      width: 35%;
+      height: 100%;
+      background: rgba(248, 250, 252, 0.9);
+    }
+
+    .music-volume-label {
+      font-size: 11px;
+      margin-top: 6px;
+      opacity: 0.9;
+    }
+
+    .music-volume-range {
+      width: 100%;
+    }
+
+    /* Settings app */
+    .settings-section {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      backdrop-filter: blur(10px);
+    }
+
+    body.theme-light .settings-section {
+      background: rgba(248, 250, 252, 0.9);
+      border-color: rgba(148, 163, 184, 0.9);
+    }
+
+    .settings-title {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    .settings-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .pill-toggle {
+      width: 42px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(55, 65, 81, 0.9);
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      justify-content: flex-start;
+      transition: background 0.2s ease, justify-content 0.2s ease;
+    }
+
+    .pill-toggle-knob {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #f9fafb;
+    }
+
+    .pill-toggle.on {
+      background: var(--accent);
+      justify-content: flex-end;
+    }
+
+    .settings-select {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      padding: 2px 8px;
+      font-size: 11px;
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+    }
+
+    body.theme-light .settings-select {
+      background: #f9fafb;
+      color: #111827;
+      border-color: rgba(148, 163, 184, 1);
+    }
+
+    /* Volume overlay */
+    .volume-overlay {
+      position: absolute;
+      top: 100px;
+      left: 16px;
+      height: 160px;
+      width: 32px;
+      border-radius: 20px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 6px;
+      color: #e5e7eb;
+      font-size: 10px;
+      backdrop-filter: blur(14px);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-10px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .volume-overlay.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .volume-icon {
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .volume-bars {
+      flex: 1;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 2px;
+      width: 100%;
+    }
+
+    .volume-bar {
+      width: 100%;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(55, 65, 81, 0.9);
+    }
+
+    .volume-bar.filled {
+      background: #f9fafb;
+    }
+
+    .volume-percent {
+      margin-top: 4px;
+      font-size: 10px;
+      opacity: 0.9;
+    }
+
+    /* Scrollbars (small & minimal) */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.7);
+      border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 10px;
+      }
+      .page {
+        padding: 8px;
+      }
+      .phone-frame {
+        transform: scale(0.9);
+      }
+    }
+  </style>
+</head>
+<body class="theme-dark">
+  <div class="page">
+    <div class="phone-shadow"></div>
+
+    <div class="phone-frame">
+      <div class="phone-inner">
+        <!-- Status bar -->
+        <div class="status-bar">
+          <div class="status-left">
+            <span id="statusTime">9:41</span>
+          </div>
+          <div class="status-right">
+            <div style="display:flex; gap:2px;">
+              <div class="signal-bar"></div>
+              <div class="signal-bar"></div>
+              <div class="signal-bar"></div>
+              <div class="signal-bar"></div>
+            </div>
+            <span>5G</span>
+            <div class="battery">
+              <div class="battery-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notch -->
+        <div class="notch"></div>
+
+        <!-- Volume overlay -->
+        <div class="volume-overlay" id="volumeOverlay">
+          <div class="volume-icon" id="volumeIcon">🔊</div>
+          <div class="volume-bars" id="volumeBars"></div>
+          <div class="volume-percent" id="volumePercent">70%</div>
+        </div>
+
+        <!-- Lock Screen -->
+        <div id="lockScreen" class="screen-layer wallpaper-default active">
+          <div class="lock-screen-inner">
+            <div>
+              <div class="lock-time">
+                <div class="lock-time-main" id="lockTimeMain">9:41</div>
+                <div class="lock-time-sub" id="lockTimeSub">Tuesday, 9 Dec</div>
+              </div>
+
+              <div class="lock-notifications">
+                <div class="lock-notification-card">
+                  <div class="lock-notification-title">System</div>
+                  <div>Welcome to your web phone. Tap “Swipe to unlock” to start.</div>
+                </div>
+                <div class="lock-notification-card">
+                  <div class="lock-notification-title">Tips</div>
+                  <div>Use the side button to lock/unlock, volume keys to change volume.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lock-bottom-area">
+              <button class="swipe-unlock" id="unlockBtn">
+                <div class="swipe-dot"></div>
+                <span>Swipe to unlock</span>
+              </button>
+
+              <div class="lock-quick-icons">
+                <span>📷</span>
+                <span>🔦</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Home Screen -->
+        <div id="homeScreen" class="screen-layer wallpaper-default">
+          <div class="home-screen-inner">
+            <div class="widget-stack">
+              <div class="widget">
+                <div class="widget-row">
+                  <div>
+                    <div class="widget-title">Up Next</div>
+                    <div class="widget-main">Web Phone OS</div>
+                    <div class="widget-sub">Tap an app icon to open.</div>
+                  </div>
+                  <div style="font-size:22px;">📱</div>
+                </div>
+              </div>
+
+              <div class="widget">
+                <div class="widget-row">
+                  <div>
+                    <div class="widget-title">Now Playing</div>
+                    <div class="widget-main">Lo-fi Web Vibes</div>
+                  </div>
+                  <div style="font-size:18px;">🎧</div>
+                </div>
+                <div class="widget-sub">Control it in the Music app.</div>
+              </div>
+            </div>
+
+            <div class="apps-grid">
+              <div>
+                <button class="app-icon" data-app="browser">
+                  <div class="app-icon-inner">🌐</div>
+                </button>
+                <div class="app-label">Browser</div>
+              </div>
+
+              <div>
+                <button class="app-icon" data-app="notes">
+                  <div class="app-icon-inner">📝</div>
+                </button>
+                <div class="app-label">Notes</div>
+              </div>
+
+              <div>
+                <button class="app-icon" data-app="music">
+                  <div class="app-icon-inner">🎵</div>
+                </button>
+                <div class="app-label">Music</div>
+              </div>
+
+              <div>
+                <button class="app-icon" data-app="settings">
+                  <div class="app-icon-inner">⚙️</div>
+                </button>
+                <div class="app-label">Settings</div>
+              </div>
+
+              <div>
+                <button class="app-icon" data-app="about">
+                  <div class="app-icon-inner">💡</div>
+                </button>
+                <div class="app-label">About</div>
+              </div>
+            </div>
+
+            <div class="dock">
+              <div class="dock-inner">
+                <button class="app-icon" data-app="browser">
+                  <div class="app-icon-inner">🌐</div>
+                </button>
+                <button class="app-icon" data-app="music">
+                  <div class="app-icon-inner">🎵</div>
+                </button>
+                <button class="app-icon" data-app="notes">
+                  <div class="app-icon-inner">📝</div>
+                </button>
+                <button class="app-icon" data-app="settings">
+                  <div class="app-icon-inner">⚙️</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- App Screen -->
+        <div id="appScreen" class="screen-layer">
+          <div class="app-screen-inner">
+            <div class="app-header">
+              <div class="app-header-left">
+                <button class="circle-btn" id="backToHomeBtn">‹</button>
+                <div class="app-title" id="appTitle">App</div>
+              </div>
+              <div style="display:flex; gap:6px; font-size:14px;">
+                <span id="appEmoji">📱</span>
+              </div>
+            </div>
+            <div class="app-body" id="appBody"></div>
+          </div>
+        </div>
+
+        <!-- Home indicator (acts as home button) -->
+        <div class="home-indicator" id="homeIndicator"></div>
+      </div>
+
+      <!-- Physical buttons -->
+      <button class="side-button" id="lockToggle"></button>
+      <button class="volume-button volume-up" id="volumeUpBtn"></button>
+      <button class="volume-button volume-down" id="volumeDownBtn"></button>
+    </div>
+  </div>
+
+  <script>
+    // Simple state
+    const state = {
+      locked: true,
+      volume: 70,
+      theme: "dark",
+      wallpaper: "default",
+      currentApp: null,
+    };
+
+    // DOM elements
+    const lockScreen = document.getElementById("lockScreen");
+    const homeScreen = document.getElementById("homeScreen");
+    const appScreen = document.getElementById("appScreen");
+    const unlockBtn = document.getElementById("unlockBtn");
+    const lockToggle = document.getElementById("lockToggle");
+    const homeIndicator = document.getElementById("homeIndicator");
+    const backToHomeBtn = document.getElementById("backToHomeBtn");
+    const appTitle = document.getElementById("appTitle");
+    const appBody = document.getElementById("appBody");
+    const appEmoji = document.getElementById("appEmoji");
+    const statusTime = document.getElementById("statusTime");
+    const lockTimeMain = document.getElementById("lockTimeMain");
+    const lockTimeSub = document.getElementById("lockTimeSub");
+    const volumeUpBtn = document.getElementById("volumeUpBtn");
+    const volumeDownBtn = document.getElementById("volumeDownBtn");
+    const volumeOverlay = document.getElementById("volumeOverlay");
+    const volumeBars = document.getElementById("volumeBars");
+    const volumePercent = document.getElementById("volumePercent");
+    const volumeIcon = document.getElementById("volumeIcon");
+
+    // Local storage keys
+    const STORAGE_KEYS = {
+      notes: "webPhone_notes",
+      theme: "webPhone_theme",
+      wallpaper: "webPhone_wallpaper",
+      volume: "webPhone_volume",
+    };
+
+    // Init volume bars UI
+    function renderVolumeBars() {
+      volumeBars.innerHTML = "";
+      const total = 8;
+      const filled = Math.round((state.volume / 100) * total);
+      for (let i = 0; i < total; i++) {
+        const bar = document.createElement("div");
+        bar.className = "volume-bar" + (i < filled ? " filled" : "");
+        volumeBars.appendChild(bar);
+      }
+      volumePercent.textContent = state.volume + "%";
+      volumeIcon.textContent =
+        state.volume === 0 ? "🔇" : state.volume < 50 ? "🔉" : "🔊";
+    }
+
+    function showVolumeOverlay() {
+      renderVolumeBars();
+      volumeOverlay.classList.add("visible");
+      if (showVolumeOverlay._timeout) {
+        clearTimeout(showVolumeOverlay._timeout);
+      }
+      showVolumeOverlay._timeout = setTimeout(() => {
+        volumeOverlay.classList.remove("visible");
+      }, 800);
+    }
+
+    function setVolume(newValue) {
+      state.volume = Math.max(0, Math.min(100, newValue));
+      try {
+        localStorage.setItem(STORAGE_KEYS.volume, String(state.volume));
+      } catch (e) {}
+      showVolumeOverlay();
+    }
+
+    // Time updating
+    function updateTime() {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, "0");
+      const displayHours = hours % 12 || 12;
+      const timeStr = displayHours + ":" + minutes;
+      statusTime.textContent = timeStr;
+      lockTimeMain.textContent = timeStr;
+
+      const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const dayName = dayNames[now.getDay()];
+      const dateNum = now.getDate();
+      const monthName = monthNames[now.getMonth()];
+      lockTimeSub.textContent = dayName + ", " + dateNum + " " + monthName;
+    }
+
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    function applyTheme() {
+      if (state.theme === "light") {
+        document.body.classList.remove("theme-dark");
+        document.body.classList.add("theme-light");
+      } else {
+        document.body.classList.remove("theme-light");
+        document.body.classList.add("theme-dark");
+      }
+    }
+
+    function applyWallpaper() {
+      const wallpapers = {
+        default: "wallpaper-default",
+        ocean: "wallpaper-ocean",
+        pastel: "wallpaper-pastel",
+      };
+      lockScreen.className = "screen-layer active " + wallpapers[state.wallpaper];
+      homeScreen.className = "screen-layer " + wallpapers[state.wallpaper];
+    }
+
+    // Lock / unlock
+    function setLocked(locked) {
+      state.locked = locked;
+      if (locked) {
+        lockScreen.classList.add("active");
+        homeScreen.classList.remove("active");
+        appScreen.classList.remove("active");
+      } else {
+        lockScreen.classList.remove("active");
+        homeScreen.classList.add("active");
+        appScreen.classList.remove("active");
+      }
+    }
+
+    // Open app
+    function openApp(appId) {
+      state.currentApp = appId;
+      lockScreen.classList.remove("active");
+      homeScreen.classList.remove("active");
+      appScreen.classList.add("active");
+
+      const appConfig = {
+        browser: { title: "Browser", emoji: "🌐" },
+        notes: { title: "Notes", emoji: "📝" },
+        music: { title: "Music", emoji: "🎵" },
+        settings: { title: "Settings", emoji: "⚙️" },
+        about: { title: "About", emoji: "💡" },
+      }[appId] || { title: "App", emoji: "📱" };
+
+      appTitle.textContent = appConfig.title;
+      appEmoji.textContent = appConfig.emoji;
+
+      renderAppScreen(appId);
+    }
+
+    function goHome() {
+      state.currentApp = null;
+      appScreen.classList.remove("active");
+      homeScreen.classList.add("active");
+    }
+
+    // Render apps
+    function renderAppScreen(appId) {
+      if (appId === "browser") renderBrowserApp();
+      else if (appId === "notes") renderNotesApp();
+      else if (appId === "music") renderMusicApp();
+      else if (appId === "settings") renderSettingsApp();
+      else if (appId === "about") renderAboutApp();
+      else appBody.textContent = "App not implemented.";
+    }
+
+    function renderBrowserApp() {
+      const savedUrl = "https://example.com";
+      appBody.innerHTML = `
+        <div class="browser-address-bar">
+          <input type="text" class="browser-address-input" id="browserUrlInput"
+            value="${savedUrl}"
+            placeholder="Type a URL like https://example.com" />
+          <button class="browser-go-btn" id="browserGoBtn">Go</button>
+        </div>
+        <div class="browser-hint">
+          Note: Some sites block embedding in frames; if a site doesn't load, try another.
+        </div>
+        <iframe src="${savedUrl}" class="browser-frame" id="browserFrame" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+      `;
+
+      const input = document.getElementById("browserUrlInput");
+      const goBtn = document.getElementById("browserGoBtn");
+      const frame = document.getElementById("browserFrame");
+
+      function loadUrl() {
+        let url = input.value.trim();
+        if (!url) return;
+        if (!/^https?:\/\//i.test(url)) {
+          url = "https://" + url;
+        }
+        frame.src = url;
+      }
+
+      goBtn.addEventListener("click", loadUrl);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") loadUrl();
+      });
+    }
+
+    function renderNotesApp() {
+      let saved = "";
+      try {
+        saved = localStorage.getItem(STORAGE_KEYS.notes) || "";
+      } catch (e) {}
+
+      appBody.innerHTML = `
+        <p style="font-size:12px; opacity:0.8; margin-top:0; margin-bottom:6px;">
+          Your notes are saved in this browser automatically.
+        </p>
+        <textarea class="notes-textarea" id="notesTextarea" placeholder="Start typing your notes here...">${saved}</textarea>
+      `;
+
+      const textarea = document.getElementById("notesTextarea");
+      textarea.addEventListener("input", () => {
+        try {
+          localStorage.setItem(STORAGE_KEYS.notes, textarea.value);
+        } catch (e) {}
+      });
+    }
+
+    function renderMusicApp() {
+      let savedVolume = state.volume;
+      appBody.innerHTML = `
+        <div class="music-card">
+          <div class="music-title">Lo-fi Web Vibes</div>
+          <div class="music-artist">Demo Track (Built-in)</div>
+
+          <div class="music-controls">
+            <button class="music-control-btn" id="musicPrevBtn">⏮</button>
+            <button class="music-control-btn" id="musicPlayBtn">▶</button>
+            <button class="music-control-btn" id="musicNextBtn">⏭</button>
+          </div>
+
+          <div class="music-timeline">
+            <div class="music-timeline-fill"></div>
+          </div>
+        </div>
+
+        <div class="music-volume-label">
+          System volume (mirrors side buttons): <span id="musicVolumeLabel">${savedVolume}%</span>
+        </div>
+        <input type="range" min="0" max="100" value="${savedVolume}" class="music-volume-range" id="musicVolumeRange" />
+
+        <p style="font-size:11px; opacity:0.8; margin-top:8px;">
+          This is a visual/music-controls demo. You can link real audio using HTML audio tags if you want.
+        </p>
+      `;
+
+      const volumeRange = document.getElementById("musicVolumeRange");
+      const volumeLabel = document.getElementById("musicVolumeLabel");
+      const playBtn = document.getElementById("musicPlayBtn");
+
+      volumeRange.addEventListener("input", () => {
+        const v = Number(volumeRange.value);
+        setVolume(v);
+        volumeLabel.textContent = v + "%";
+      });
+
+      playBtn.addEventListener("click", () => {
+        // Just toggle icon, no real audio file to avoid external URLs
+        if (playBtn.textContent === "▶") {
+          playBtn.textContent = "⏸";
+        } else {
+          playBtn.textContent = "▶";
+        }
+      });
+    }
+
+    function renderSettingsApp() {
+      appBody.innerHTML = `
+        <div class="settings-section">
+          <div class="settings-title">Appearance</div>
+          <div class="settings-row">
+            <span>Dark Mode</span>
+            <div class="pill-toggle ${state.theme === "dark" ? "on" : ""}" id="themeToggle">
+              <div class="pill-toggle-knob"></div>
+            </div>
+          </div>
+
+          <div class="settings-row" style="margin-top:8px;">
+            <span>Wallpaper</span>
+            <select class="settings-select" id="wallpaperSelect">
+              <option value="default">Vibrant</option>
+              <option value="ocean">Ocean</option>
+              <option value="pastel">Pastel</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-title">System</div>
+          <div class="settings-row">
+            <span>Lock Device</span>
+            <button class="circle-btn" id="lockFromSettingsBtn">🔒</button>
+          </div>
+          <div class="settings-row">
+            <span>Reset Notes</span>
+            <button class="circle-btn" id="resetNotesBtn">🗑</button>
+          </div>
+        </div>
+
+        <p style="font-size:11px; opacity:0.8;">
+          Theme, wallpaper, volume and notes are stored in your browser only (localStorage).
+        </p>
+      `;
+
+      const themeToggle = document.getElementById("themeToggle");
+      const wallpaperSelect = document.getElementById("wallpaperSelect");
+      const lockFromSettingsBtn = document.getElementById("lockFromSettingsBtn");
+      const resetNotesBtn = document.getElementById("resetNotesBtn");
+
+      wallpaperSelect.value = state.wallpaper;
+
+      themeToggle.addEventListener("click", () => {
+        state.theme = state.theme === "dark" ? "light" : "dark";
+        applyTheme();
+        try {
+          localStorage.setItem(STORAGE_KEYS.theme, state.theme);
+        } catch (e) {}
+        if (state.wallpaper) applyWallpaper();
+        renderSettingsApp(); // re-render to update toggle UI
+      });
+
+      wallpaperSelect.addEventListener("change", () => {
+        state.wallpaper = wallpaperSelect.value;
+        try {
+          localStorage.setItem(STORAGE_KEYS.wallpaper, state.wallpaper);
+        } catch (e) {}
+        applyWallpaper();
+      });
+
+      lockFromSettingsBtn.addEventListener("click", () => {
+        setLocked(true);
+      });
+
+      resetNotesBtn.addEventListener("click", () => {
+        if (confirm("Clear all notes? This cannot be undone.")) {
+          try {
+            localStorage.removeItem(STORAGE_KEYS.notes);
+          } catch (e) {}
+          alert("Notes cleared. Open Notes app to start fresh.");
+        }
+      });
+    }
+
+    function renderAboutApp() {
+      appBody.innerHTML = `
+        <p style="margin-top:0;">
+          <strong>Web Phone OS</strong> – a custom phone-style interface running fully inside your browser.
+        </p>
+        <ul style="padding-left:18px; font-size:12px; margin-top:4px;">
+          <li>Lock screen with time & notifications</li>
+          <li>Home screen with apps and widgets</li>
+          <li>Browser, Notes, Music and Settings apps</li>
+          <li>Dark / Light mode and wallpapers</li>
+          <li>Volume overlay with side buttons</li>
+        </ul>
+        <p style="font-size:11px; opacity:0.8;">
+          This is only a visual + UI simulator, not a real smartphone OS.
+        </p>
+      `;
+    }
+
+    // --- Event listeners ---
+
+    unlockBtn.addEventListener("click", () => {
+      setLocked(false);
+    });
+
+    lockToggle.addEventListener("click", () => {
+      setLocked(!state.locked);
+    });
+
+    homeIndicator.addEventListener("click", () => {
+      if (!state.locked) {
+        goHome();
+      }
+    });
+
+    backToHomeBtn.addEventListener("click", () => {
+      goHome();
+    });
+
+    document.querySelectorAll(".app-icon").forEach((icon) => {
+      icon.addEventListener("click", () => {
+        const appId = icon.getAttribute("data-app");
+        openApp(appId);
+      });
+    });
+
+    volumeUpBtn.addEventListener("click", () => setVolume(state.volume + 10));
+    volumeDownBtn.addEventListener("click", () => setVolume(state.volume - 10));
+
+    // Load saved settings
+    (function initFromStorage() {
+      try {
+        const theme = localStorage.getItem(STORAGE_KEYS.theme);
+        if (theme === "light" || theme === "dark") state.theme = theme;
+
+        const wallpaper = localStorage.getItem(STORAGE_KEYS.wallpaper);
+        if (wallpaper === "default" || wallpaper === "ocean" || wallpaper === "pastel") {
+          state.wallpaper = wallpaper;
+        }
+
+        const volumeSaved = localStorage.getItem(STORAGE_KEYS.volume);
+        if (volumeSaved !== null) {
+          const num = Number(volumeSaved);
+          if (!isNaN(num)) state.volume = Math.max(0, Math.min(100, num));
+        }
+      } catch (e) {}
+
+      applyTheme();
+      applyWallpaper();
+      renderVolumeBars();
+    })();
+  </script>
+</body>
+</html>
